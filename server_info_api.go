@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
-	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/likexian/whois-go"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type DomainInfo struct {
@@ -32,8 +35,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		//w.Write([]byte("hello world"))
-		//respondwithJSON( w, 200,map[string]string{"message": "hello Sandra"})
+
 		var domainInfo = retrieveDomainInfo()
 		respondwithJSON(w, 200, domainInfo)
 	})
@@ -42,7 +44,6 @@ func main() {
 
 func respondwithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
-	fmt.Println(payload)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	w.Write(response)
@@ -72,18 +73,55 @@ func createServerInfo(serverBody string) DomainInfo {
 
 	var domainInfo DomainInfo
 
-	for key, value := range servers {
-		// Each value is an interface{} type, that is type asserted as a string
-		fmt.Println(key, value.(map[string]interface{}))
+	for _, value := range servers {
+
 		var serverTemp = value.(map[string]interface{})
 		var server ServerDesc
 
 		server.ServerAddress = serverTemp["ipAddress"].(string)
-		server.Owner = serverTemp["serverName"].(string)
 		server.SSLGrade = serverTemp["grade"].(string)
+		obtainWhoIsInfo(&server)
 		domainInfo.Servers = append(domainInfo.Servers, server)
-	}
 
+	}
+	obtainHeaderInfo(&domainInfo)
 	return domainInfo
+
+}
+
+func obtainWhoIsInfo(server *ServerDesc) {
+	whoisInfo, e := whois.Whois(server.ServerAddress)
+
+	if e != nil {
+		log.Fatalln(e)
+	} else {
+		scanner := bufio.NewScanner(strings.NewReader(whoisInfo))
+		scanner.Split(bufio.ScanLines)
+
+		for scanner.Scan() {
+			line := scanner.Bytes()
+			if bytes.Contains(line, []byte{'O', 'r', 'g', 'N', 'a', 'm', 'e'}) {
+				organizationLine := scanner.Text()
+				server.Owner = strings.TrimSpace(strings.Split(organizationLine, ":")[1])
+			}
+			if bytes.Contains(line, []byte{'C', 'o', 'u', 'n', 't', 'r', 'y'}) {
+				countryLine := scanner.Text()
+				server.Country = strings.TrimSpace(strings.Split(countryLine, ":")[1])
+			}
+		}
+	}
+}
+
+func obtainHeaderInfo(domainInfo *DomainInfo) {
+	resp, err := http.Get("http://truora.com")
+	if err != nil {
+		domainInfo.IsDown = true
+		log.Fatalln(err)
+	} else {
+		//fmt.Println( "Header: "+ resp.Header.Get("Title"))
+		domainInfo.Logo = resp.Header.Get("og:image")
+		domainInfo.Title = resp.Header.Get("Title")
+		domainInfo.IsDown = false
+	}
 
 }
