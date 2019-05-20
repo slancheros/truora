@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/likexian/whois-go"
+	"golang.org/x/net/html"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -99,29 +101,93 @@ func obtainWhoIsInfo(server *ServerDesc) {
 		scanner.Split(bufio.ScanLines)
 
 		for scanner.Scan() {
-			line := scanner.Bytes()
-			if bytes.Contains(line, []byte{'O', 'r', 'g', 'N', 'a', 'm', 'e'}) {
-				organizationLine := scanner.Text()
-				server.Owner = strings.TrimSpace(strings.Split(organizationLine, ":")[1])
+			line := scanner.Text()
+			if strings.Contains(line, "OrgName") {
+				server.Owner = strings.TrimSpace(strings.Split(line, ":")[1])
 			}
-			if bytes.Contains(line, []byte{'C', 'o', 'u', 'n', 't', 'r', 'y'}) {
-				countryLine := scanner.Text()
-				server.Country = strings.TrimSpace(strings.Split(countryLine, ":")[1])
+			if strings.Contains(line, "Country") {
+				server.Country = strings.TrimSpace(strings.Split(line, ":")[1])
 			}
 		}
 	}
 }
 
+//func obtainHeaderInfo(domainInfo *DomainInfo) {
+//	resp, err := http.Get("https://truora.com")
+//	if err != nil {
+//		domainInfo.IsDown = true
+//		log.Fatalln(err)
+//	} else {
+//		defer resp.Body.Close()
+//
+//		responseData, err := ioutil.ReadAll(resp.Body)
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//
+//		scanner := bufio.NewScanner(strings.NewReader(string(responseData)))
+//		scanner.Split(bufio.ScanLines)
+//		for scanner.Scan() {
+//			//fmt.Println( scanner.Text())
+//			line := scanner.Text()
+//
+//			if strings.Contains(line, "og:image"){
+//			  tags := strings.Split(line, "<meta")
+//			  for _,v := range tags{
+//			  	  fmt.Println( v )
+//			  	  if strings.Contains( v,"og:image"){
+//			  	  	 domainInfo.Logo = strings.Split(v,"content=")[1]
+//				  }
+//			  }
+//			}
+//			if strings.Contains(line, "<title>") {
+//				titleLine := strings.TrimSpace( line )
+//				titleLine = strings.TrimLeft(titleLine, "<title>")
+//				titleLine = strings.Split(titleLine,"<")[0]
+//				domainInfo.Title = titleLine
+//			}
+//		}
+//		domainInfo.IsDown = false
+//	}
+
 func obtainHeaderInfo(domainInfo *DomainInfo) {
-	resp, err := http.Get("http://truora.com")
+	resp, err := http.Get("https://truora.com")
 	if err != nil {
 		domainInfo.IsDown = true
 		log.Fatalln(err)
 	} else {
-		//fmt.Println( "Header: "+ resp.Header.Get("Title"))
-		domainInfo.Logo = resp.Header.Get("og:image")
-		domainInfo.Title = resp.Header.Get("Title")
-		domainInfo.IsDown = false
-	}
+		tokenizer := html.NewTokenizer(resp.Body)
+		titleSet := false
+		for {
+			tokenType := tokenizer.Next()
 
+			if tokenType == html.ErrorToken {
+				err := tokenizer.Err()
+				if err == io.EOF {
+					break
+				}
+				log.Fatalf("error tokenizing HTML: %v", tokenizer.Err())
+			}
+			token := tokenizer.Token()
+			if "title" == token.Data && !titleSet {
+				tokenType = tokenizer.Next()
+				if tokenType == html.TextToken {
+					domainInfo.Title = tokenizer.Token().Data
+					fmt.Println("content: " + token.DataAtom.String() + "," + token.Type.String() + ",token: " + token.String())
+					titleSet = true
+					continue
+				}
+			}
+			if "meta" == token.Data && strings.Contains(token.String(), "og:image") {
+
+				for k, v := range token.Attr {
+					if v.Key == "content" && k == 0 {
+						domainInfo.Logo = v.Val
+						fmt.Println("content: " + v.Key + ", " + v.Val + ", " + v.Namespace + ", " + token.DataAtom.String() + "," + token.Type.String() + ",token: " + token.String())
+						break
+					}
+				}
+			}
+		}
+	}
 }
