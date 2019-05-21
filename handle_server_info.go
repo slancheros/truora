@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"github.com/go-chi/chi"
 	"github.com/likexian/whois-go"
 	"golang.org/x/net/html"
 	"io"
@@ -12,15 +13,16 @@ import (
 	"strings"
 )
 
-func respondwithJSON(w http.ResponseWriter, code int, payload interface{}) {
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
-	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
 	w.WriteHeader(code)
 	w.Write(response)
 }
 
-func retrieveDomainInfo() DomainInfo {
-	resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=truora.com")
+func retrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
+	domain := chi.URLParam(r, "domain")
+	resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + domain)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -30,11 +32,12 @@ func retrieveDomainInfo() DomainInfo {
 		log.Fatalln(err)
 	}
 
-	var domainInfo = createServerInfo(string(body))
-	return domainInfo
+	domainInfo := createServerInfo(string(body), domain)
+	respondWithJSON(w, 200, domainInfo)
+
 }
 
-func createServerInfo(serverBody string) DomainInfo {
+func createServerInfo(serverBody string, domain string) DomainInfo {
 
 	var result map[string]interface{}
 	json.Unmarshal([]byte(serverBody), &result)
@@ -46,19 +49,22 @@ func createServerInfo(serverBody string) DomainInfo {
 	for _, value := range servers {
 		var serverTemp = value.(map[string]interface{})
 		var server ServerDesc
-
-		server.ServerAddress = serverTemp["ipAddress"].(string)
-		server.SSLGrade = serverTemp["grade"].(string)
-		obtainWhoIsInfo(&server)
+		if serverTemp["ipAddress"] != nil {
+			server.ServerAddress = serverTemp["ipAddress"].(string)
+		}
+		if serverTemp["grade"] != nil {
+			server.SSLGrade = serverTemp["grade"].(string)
+		}
+		obtainWhoIsInfo(&server, domain)
 		domainInfo.Servers = append(domainInfo.Servers, server)
 	}
-	obtainHeaderInfo(&domainInfo)
+	obtainHeaderInfo(&domainInfo, domain)
 	return domainInfo
 
 }
 
-func obtainWhoIsInfo(server *ServerDesc) {
-	whoisInfo, e := whois.Whois(server.ServerAddress)
+func obtainWhoIsInfo(server *ServerDesc, domain string) {
+	whoisInfo, e := whois.Whois(domain)
 
 	if e != nil {
 		log.Fatalln(e)
@@ -68,7 +74,7 @@ func obtainWhoIsInfo(server *ServerDesc) {
 
 		for scanner.Scan() {
 			line := scanner.Text()
-			if strings.Contains(line, "OrgName") {
+			if strings.Contains(line, "Registrant Organization") {
 				server.Owner = strings.TrimSpace(strings.Split(line, ":")[1])
 			}
 			if strings.Contains(line, "Country") {
@@ -76,16 +82,19 @@ func obtainWhoIsInfo(server *ServerDesc) {
 			}
 		}
 	}
+
 }
 
-func obtainHeaderInfo(domainInfo *DomainInfo) {
-	resp, err := http.Get("https://truora.com")
+func obtainHeaderInfo(domainInfo *DomainInfo, domain string) {
+	resp, err := http.Get("https://" + domain)
+
 	if err != nil {
 		domainInfo.IsDown = true
 		log.Fatalln(err)
 	} else {
 		tokenizer := html.NewTokenizer(resp.Body)
 		titleSet := false
+		logoSet := false
 		for {
 			tokenType := tokenizer.Next()
 
@@ -106,9 +115,10 @@ func obtainHeaderInfo(domainInfo *DomainInfo) {
 				}
 			}
 			if "meta" == token.Data && strings.Contains(token.String(), "og:image") {
-				for k, v := range token.Attr {
-					if v.Key == "content" && k == 0 {
+				for _, v := range token.Attr {
+					if v.Key == "content" && !logoSet {
 						domainInfo.Logo = v.Val
+						logoSet = true
 						break
 					}
 				}

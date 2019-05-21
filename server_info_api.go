@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"net/http"
@@ -23,14 +24,18 @@ type ServerDesc struct {
 	Owner         string `json:"owner"`
 }
 
+var routes = flag.Bool("routes", false, "Generate router documentation")
+
 func main() {
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 
-		var domainInfo = retrieveDomainInfo()
-		respondwithJSON(w, 200, domainInfo)
+	r.Route("/serverInfo", func(r chi.Router) {
+		r.Get("/{domain:}", retrieveDomainInfo)
+		r.Get("/", retrieveDomainInfo)
 	})
+
 	http.ListenAndServe(":3334", r)
 }
