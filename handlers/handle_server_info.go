@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"bufio"
@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"truora/models"
 )
 
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
@@ -20,7 +21,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
-func retrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
+func RetrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
 	domain := chi.URLParam(r, "domain")
 	resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + domain)
 	if err != nil {
@@ -37,18 +38,18 @@ func retrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func createServerInfo(serverBody string, domain string) DomainInfo {
+func createServerInfo(serverBody string, domain string) models.DomainInfo {
 
 	var result map[string]interface{}
 	json.Unmarshal([]byte(serverBody), &result)
 
 	servers := result["endpoints"].([]interface{})
 
-	var domainInfo DomainInfo
+	var domainInfo models.DomainInfo
 
 	for _, value := range servers {
 		var serverTemp = value.(map[string]interface{})
-		var server ServerDesc
+		var server models.ServerDesc
 		if serverTemp["ipAddress"] != nil {
 			server.ServerAddress = serverTemp["ipAddress"].(string)
 		}
@@ -63,7 +64,7 @@ func createServerInfo(serverBody string, domain string) DomainInfo {
 
 }
 
-func obtainWhoIsInfo(server *ServerDesc, domain string) {
+func obtainWhoIsInfo(server *models.ServerDesc, domain string) {
 	whoisInfo, e := whois.Whois(domain)
 
 	if e != nil {
@@ -85,7 +86,7 @@ func obtainWhoIsInfo(server *ServerDesc, domain string) {
 
 }
 
-func obtainHeaderInfo(domainInfo *DomainInfo, domain string) {
+func obtainHeaderInfo(domainInfo *models.DomainInfo, domain string) {
 	resp, err := http.Get("https://" + domain)
 
 	if err != nil {
