@@ -19,7 +19,8 @@ func main() {
 	r.Route("/serverInfo", func(r chi.Router) {
 		r.Get("/{domain:}", handlers.RetrieveDomainInfo)
 		r.Get("/", handlers.RetrieveDomainInfo)
+		r.Get("/list", handlers.ListDomainsQueried)
 	})
 
-	http.ListenAndServe(":3334", r)
+	http.ListenAndServe(":3344", r)
 }

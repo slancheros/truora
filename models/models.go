@@ -1,7 +1,5 @@
 package models
 
-import "time"
-
 type DomainInfo struct {
 	Servers          []ServerDesc `json:"servers"`
 	ServersChanged   string       `json:"servers_changed"`
@@ -19,7 +17,10 @@ type ServerDesc struct {
 	Owner         string `json:"owner"`
 }
 
-type DomainHistory struct {
-	Domain      string
-	RequestTime time.Time
+type Item struct {
+	Item string
+}
+
+type Items struct {
+	Domains []Item `json:"items"`
 }

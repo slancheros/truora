@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"truora/db"
 	"truora/models"
 )
 
@@ -34,6 +35,9 @@ func RetrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	domainInfo := createServerInfo(string(body), domain)
+	db.Connect()
+	db.SaveQueriedDomain(domain)
+	defer db.Close()
 	respondWithJSON(w, 200, domainInfo)
 
 }
@@ -61,7 +65,6 @@ func createServerInfo(serverBody string, domain string) models.DomainInfo {
 	}
 	obtainHeaderInfo(&domainInfo, domain)
 	return domainInfo
-
 }
 
 func obtainWhoIsInfo(server *models.ServerDesc, domain string) {
@@ -126,4 +129,12 @@ func obtainHeaderInfo(domainInfo *models.DomainInfo, domain string) {
 			}
 		}
 	}
+}
+
+func ListDomainsQueried(w http.ResponseWriter, r *http.Request) {
+	db.Connect()
+	items := db.ListItems()
+	defer db.Close()
+	respondWithJSON(w, 200, items)
+
 }
