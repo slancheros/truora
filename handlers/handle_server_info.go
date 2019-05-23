@@ -35,11 +35,8 @@ func RetrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	domainInfo := createServerInfo(string(body), domain)
-	db.Connect()
-	db.SaveQueriedDomain(domain)
-	defer db.Close()
+	saveQueriedDomain(domain)
 	respondWithJSON(w, 200, domainInfo)
-
 }
 
 func createServerInfo(serverBody string, domain string) models.DomainInfo {
@@ -137,4 +134,10 @@ func ListDomainsQueried(w http.ResponseWriter, r *http.Request) {
 	defer db.Close()
 	respondWithJSON(w, 200, items)
 
+}
+
+func saveQueriedDomain(domain string) {
+	db.Connect()
+	db.SaveQueriedDomain(domain)
+	defer db.Close()
 }
