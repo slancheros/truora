@@ -22,5 +22,5 @@ func main() {
 		r.Get("/list", handlers.ListDomainsQueried)
 	})
 
-	http.ListenAndServe(":3344", r)
+	http.ListenAndServe(":9898", r)
 }

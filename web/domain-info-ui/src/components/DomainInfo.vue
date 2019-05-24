@@ -18,7 +18,7 @@
               <b-col >
                 <b-form-input id="input-1" v-model="name" :state="state" trim size="20"></b-form-input>
               </b-col>
-              <b-col cols="50">  <b-button variant="success">Get Info</b-button></b-col>
+              <b-col cols="50">  <b-button variant="success" v-on:click="getDomainInfo">Get Info</b-button></b-col>
             </b-form-row>
             <b-form-row>
               <p>
@@ -42,13 +42,13 @@
       <b-tab title="List Queried Domains">
         <b-container>
           <b-form-group
-                  id="fieldset-1"
+                  id="fieldset-2"
                   description="List of queried domains"
                   label="Queried domain's"
                   label-for="input-horizontal"
                   :state="state">
             <b-form-row>
-              <b-col cols="50">  <b-button variant="success">List Domains</b-button></b-col>
+              <b-col cols="50">  <b-button variant="success" v-on:click="getDomainList">List Domains</b-button></b-col>
             </b-form-row>
             <b-form-row>
               <p>
@@ -56,9 +56,10 @@
               </p>
             </b-form-row>
             <b-form-row>
+
               <b-form-textarea
                       id="listDomains_TA"
-                      v-model="text"
+                      v-model="domainList"
                       placeholder="Domain Info..."
                       rows="30"
                       max-rows="50"
@@ -76,6 +77,8 @@
 </template>
 
 <script>
+  import axios from 'axios';
+
 export default {
   computed: {
     state() {
@@ -85,7 +88,9 @@ export default {
       if (this.name.length > 4) {
         return ''
       } else if (this.name.length > 0) {
+        this.text =''
         return 'Enter at least 4 characters'
+
       } else {
         return 'The domain\'s name is still empty'
       }
@@ -101,12 +106,46 @@ export default {
      data() {
       return {
         text: '',
+        domainList:'',
         name: ''
       }
+    },
+  methods: {
+    getDomainInfo: function () {
+      axios.get("http://localhost:9898/serverInfo/" + this.name)
+              .then((response) => {
+                this.text = "Success:"+ response.data.value;
+              })
+              .catch((error) => {
+                  if (error.response) {
+                    this.text = "Error: "+error.response.data + error.response.status + error.response.headers
+                    // The request was made and the server responded with a status code
+                    // that falls out of the range of 2xx
+                    // console.log(error.response.data);
+                    // console.log(error.response.status);
+                    // console.log(error.response.headers);
+                  } else if (error.request) {
+                    // The request was made but no response was received
+                    // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
+                    // http.ClientRequest in node.js
+                    this.text = "Error: "+error.request.data.value;
+                  } else {
+                    // Something happened in setting up the request that triggered an Error
+                    this.text="Error: "+ error.message;
+                  }
+                })
+
+    },
+
+    getDomainList: function () {
+      this.domainList = ''
+      axios.get("http://localhost:9898/serverInfo/list")
+              .then((response => this.domainList = response.data.text)
+                      .catch( error => this.domainList = error.response.data))
     }
   }
 
-
+}
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
