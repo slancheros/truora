@@ -39,7 +39,7 @@ func RetrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
 
 	domainInfo := createServerInfo(string(body), domain)
 	domainInfo.ServersSSLGrade = getSSLGrade(domainInfo)
-	UpdateDomain(domain, domainInfo)
+	UpdateDomain(domain, &domainInfo)
 	respondWithJSON(w, 200, domainInfo)
 }
 
@@ -132,30 +132,31 @@ func obtainHeaderInfo(domainInfo *models.DomainInfo, domain string) {
 	}
 }
 
-func UpdateDomain(domain string, info models.DomainInfo) {
+func UpdateDomain(domain string, info *models.DomainInfo) models.DomainInfo {
 	db.Connect()
 
-	items := db.ListItems()
-	item := Contains(items.Domains, domain)
+	var item models.Item
+	domain_info := domain + " info"
 
-	if item.Item != "" {
+	if db.GetDomain(domain_info, &item) {
+		if item.SSLGrade == "" || item.SSLGrade == ":" {
+			info.PreviousSSLGrade = info.ServersSSLGrade
+		} else {
+			info.PreviousSSLGrade = item.SSLGrade
+		}
+
 		if item.SSLGrade != info.ServersSSLGrade && item.QueryTime.Add(60*time.Minute).Before(time.Now()) {
 			info.ServersChanged = "true"
+		} else {
+			info.ServersChanged = "false"
 		}
-		info.PreviousSSLGrade = item.SSLGrade
+
 	} else {
 		info.ServersChanged = "false"
 	}
-	db.UpdateQueriedDomain(domain, info)
+	db.UpdateQueriedDomain(domain, *info)
 	defer db.Close()
-}
-
-func ListDomainsQueried(w http.ResponseWriter, r *http.Request) {
-	db.Connect()
-	items := db.ListDomainItems()
-	defer db.Close()
-	respondWithJSON(w, 200, items)
-
+	return *info
 }
 
 func getSSLGrade(domainInfo models.DomainInfo) string {
@@ -188,6 +189,10 @@ func ListDomainNamesQueried(w http.ResponseWriter, r *http.Request) {
 	for i := range items.Domains {
 		domainList.DomainNames = append(domainList.DomainNames, items.Domains[i].Item)
 	}
-	respondWithJSON(w, 200, domainList)
+	if len(domainList.DomainNames) == 0 {
+		respondWithJSON(w, 200, make([]string, 0))
+	} else {
+		respondWithJSON(w, 200, domainList)
 
+	}
 }

@@ -63,9 +63,15 @@ func UpdateQueriedDomain(domain string, info models.DomainInfo) {
 	} else {
 		item_to_update.QueryTime = time.Now()
 		item_to_update.SSLGrade = info.ServersSSLGrade
-		db.Save(&item_to_update)
+
+		db.Model(&item_to_update).Update(models.Item{QueryTime: time.Now(), SSLGrade: info.ServersSSLGrade})
 	}
 }
+
+func GetDomain(domain string, item *models.Item) bool {
+	return !db.Where("item=?", domain).First(&item).RecordNotFound()
+}
+
 func Contains(a []models.Item, x string) bool {
 	for _, n := range a {
 		if x == n.Item {
