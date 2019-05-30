@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type DomainInfo struct {
 	Servers          []ServerDesc `json:"servers"`
 	ServersChanged   string       `json:"servers_changed"`
@@ -18,9 +20,27 @@ type ServerDesc struct {
 }
 
 type Item struct {
-	Item string
+	Item      string
+	QueryTime time.Time
+	SSLGrade  string
 }
 
 type Items struct {
 	Domains []Item `json:"items"`
+}
+
+type ListDomains struct {
+	DomainNames []string `json:"items"`
+}
+
+type Config struct {
+	Database database
+}
+
+type database struct {
+	Server   string
+	Port     string
+	Database string
+	User     string
+	Password string
 }

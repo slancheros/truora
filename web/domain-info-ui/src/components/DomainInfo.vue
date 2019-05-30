@@ -1,7 +1,6 @@
 <template>
   <div class="hello">
     <h1>{{ msg }}</h1>
-
     <b-tabs content-class="mt-3">
       <b-tab title="Find info for a Domain" active>
         <b-container>
@@ -72,13 +71,12 @@
       </b-tab>
     </b-tabs>
 
-
   </div>
+
 </template>
 
 <script>
   import axios from 'axios';
-
 export default {
   computed: {
     state() {
@@ -88,9 +86,7 @@ export default {
       if (this.name.length > 4) {
         return ''
       } else if (this.name.length > 0) {
-        this.text =''
         return 'Enter at least 4 characters'
-
       } else {
         return 'The domain\'s name is still empty'
       }
@@ -101,50 +97,36 @@ export default {
   },
   name: 'DomainInfo',
   props: {
-    msg: String
+    msg: String,
+    info:String
   },
-     data() {
-      return {
-        text: '',
-        domainList:'',
-        name: ''
-      }
-    },
+  data: function () {
+    return {
+      text: '',
+      domainList: '',
+      name: '',
+      isLoading: false,
+    }
+  },
   methods: {
     getDomainInfo: function () {
-      axios.get("http://localhost:9898/serverInfo/" + this.name)
-              .then((response) => {
-                this.text = "Success:"+ response.data.value;
+       axios.get("http://192.168.1.30:3344/serverInfo/" + this.name)
+              .then(response =>
+                this.text = JSON.stringify(response.data)
+              ).catch(function (error) {
+                this.text = "Error: " + error.data
               })
-              .catch((error) => {
-                  if (error.response) {
-                    this.text = "Error: "+error.response.data + error.response.status + error.response.headers
-                    // The request was made and the server responded with a status code
-                    // that falls out of the range of 2xx
-                    // console.log(error.response.data);
-                    // console.log(error.response.status);
-                    // console.log(error.response.headers);
-                  } else if (error.request) {
-                    // The request was made but no response was received
-                    // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
-                    // http.ClientRequest in node.js
-                    this.text = "Error: "+error.request.data.value;
-                  } else {
-                    // Something happened in setting up the request that triggered an Error
-                    this.text="Error: "+ error.message;
-                  }
-                })
 
     },
-
     getDomainList: function () {
-      this.domainList = ''
-      axios.get("http://localhost:9898/serverInfo/list")
-              .then((response => this.domainList = response.data.text)
-                      .catch( error => this.domainList = error.response.data))
+      return axios.get("http://192.168.1.30:3344/serverInfo/list")
+              .then(response =>
+                  this.domainList = JSON.stringify(response.data)
+              ).catch(error =>
+                  this.domainList = "Error: " + error.data
+              )
     }
   }
-
 }
 </script>
 

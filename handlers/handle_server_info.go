@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 	"truora/db"
 	"truora/models"
 )
@@ -18,12 +19,14 @@ import (
 func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 	w.Header().Set("Content-Type", "application/json;charset=UTF-8")
+	w.Header().Set("Access-Control-Allow-Origin", string('*'))
 	w.WriteHeader(code)
 	w.Write(response)
 }
 
 func RetrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
 	domain := chi.URLParam(r, "domain")
+
 	resp, err := http.Get("https://api.ssllabs.com/api/v3/analyze?host=" + domain)
 	if err != nil {
 		log.Fatalln(err)
@@ -35,7 +38,8 @@ func RetrieveDomainInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	domainInfo := createServerInfo(string(body), domain)
-	saveQueriedDomain(domain)
+	domainInfo.ServersSSLGrade = getSSLGrade(domainInfo)
+	UpdateDomain(domain, domainInfo)
 	respondWithJSON(w, 200, domainInfo)
 }
 
@@ -128,16 +132,62 @@ func obtainHeaderInfo(domainInfo *models.DomainInfo, domain string) {
 	}
 }
 
+func UpdateDomain(domain string, info models.DomainInfo) {
+	db.Connect()
+
+	items := db.ListItems()
+	item := Contains(items.Domains, domain)
+
+	if item.Item != "" {
+		if item.SSLGrade != info.ServersSSLGrade && item.QueryTime.Add(60*time.Minute).Before(time.Now()) {
+			info.ServersChanged = "true"
+		}
+		info.PreviousSSLGrade = item.SSLGrade
+	} else {
+		info.ServersChanged = "false"
+	}
+	db.UpdateQueriedDomain(domain, info)
+	defer db.Close()
+}
+
 func ListDomainsQueried(w http.ResponseWriter, r *http.Request) {
 	db.Connect()
-	items := db.ListItems()
+	items := db.ListDomainItems()
 	defer db.Close()
 	respondWithJSON(w, 200, items)
 
 }
 
-func saveQueriedDomain(domain string) {
+func getSSLGrade(domainInfo models.DomainInfo) string {
+
+	SSLGrade := "A"
+
+	for i := range domainInfo.Servers {
+		if domainInfo.Servers[i].SSLGrade > SSLGrade {
+			SSLGrade = domainInfo.Servers[i].SSLGrade
+		}
+	}
+	return SSLGrade
+}
+
+func Contains(a []models.Item, domain string) models.Item {
+	var found models.Item
+	for _, n := range a {
+		if domain == n.Item {
+			found = n
+		}
+	}
+	return found
+}
+
+func ListDomainNamesQueried(w http.ResponseWriter, r *http.Request) {
 	db.Connect()
-	db.SaveQueriedDomain(domain)
+	items := db.ListDomainItems()
 	defer db.Close()
+	var domainList models.ListDomains
+	for i := range items.Domains {
+		domainList.DomainNames = append(domainList.DomainNames, items.Domains[i].Item)
+	}
+	respondWithJSON(w, 200, domainList)
+
 }
