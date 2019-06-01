@@ -1,0 +1,7 @@
+# filename: properties.toml
+[database]
+server = "localhost"
+port = "26257"
+user = "maxroach"
+database ="domains"
+
